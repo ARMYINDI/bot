@@ -1,0 +1,80 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>NxT Stats</title>
+<script src="https://telegram.org/js/telegram-web-app.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1"></script>
+<style>
+  body { margin: 0; padding: 12px; font-family: sans-serif;
+         background: var(--tg-theme-bg-color, #111); color: var(--tg-theme-text-color, #fff); }
+  .grid { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-bottom: 12px; }
+  .card { background: var(--tg-theme-secondary-bg-color, #222); border-radius: 12px;
+          padding: 10px; text-align: center; }
+  .card b { display: block; font-size: 20px; margin-top: 4px; }
+  .g { color: #2ecc71; } .r { color: #e74c3c; }
+  h4 { margin: 0 0 8px; font-weight: 600; }
+  .empty { text-align: center; padding: 40px 0; opacity: .7; }
+</style>
+</head>
+<body>
+<div id="app">
+  <div class="grid" id="cards"></div>
+  <div class="card"><h4>Equity Curve</h4><canvas id="eq"></canvas></div>
+  <br>
+  <div class="grid">
+    <div class="card"><h4>Win / Loss</h4><canvas id="dn"></canvas></div>
+    <div class="card"><h4>P&amp;L per trade</h4><canvas id="bar"></canvas></div>
+  </div>
+</div>
+<script>
+Telegram.WebApp.ready();
+Telegram.WebApp.expand();
+
+const q = new URLSearchParams(location.search).get('d') || '';
+let pnl = [];
+try { pnl = JSON.parse(atob(q.replace(/-/g, '+').replace(/_/g, '/'))); } catch (e) {}
+
+if (!pnl.length) {
+  document.getElementById('app').innerHTML = '<div class="empty">Abhi koi trade data nahi hai.</div>';
+} else {
+  const wins = pnl.filter(x => x > 0), losses = pnl.filter(x => x < 0);
+  const net = pnl.reduce((a, b) => a + b, 0);
+  const gw = wins.reduce((a, b) => a + b, 0);
+  const gl = Math.abs(losses.reduce((a, b) => a + b, 0));
+  const decided = wins.length + losses.length;
+  const wr = decided ? (wins.length / decided * 100).toFixed(1) : '0.0';
+  const pf = gl ? (gw / gl).toFixed(2) : '-';
+
+  document.getElementById('cards').innerHTML =
+    `<div class="card">Net P&amp;L<b class="${net >= 0 ? 'g' : 'r'}">${net >= 0 ? '+' : ''}${net.toFixed(2)}$</b></div>
+     <div class="card">Win rate<b>${wr}%</b></div>
+     <div class="card">Trades<b>${pnl.length}</b></div>
+     <div class="card">Profit factor<b>${pf}</b></div>`;
+
+  let run = 0;
+  const eq = pnl.map(x => (run += x));
+  const labels = pnl.map((_, i) => i + 1);
+  const txt = getComputedStyle(document.body).color;
+  Chart.defaults.color = txt;
+
+  new Chart(document.getElementById('eq'), {
+    type: 'line',
+    data: { labels, datasets: [{ data: eq, borderColor: '#3498db', tension: .3, fill: false }] },
+    options: { plugins: { legend: { display: false } } }
+  });
+  new Chart(document.getElementById('dn'), {
+    type: 'doughnut',
+    data: { labels: ['Win', 'Loss'],
+            datasets: [{ data: [wins.length, losses.length], backgroundColor: ['#2ecc71', '#e74c3c'] }] }
+  });
+  new Chart(document.getElementById('bar'), {
+    type: 'bar',
+    data: { labels, datasets: [{ data: pnl, backgroundColor: pnl.map(x => x >= 0 ? '#2ecc71' : '#e74c3c') }] },
+    options: { plugins: { legend: { display: false } } }
+  });
+}
+</script>
+</body>
+</html>
